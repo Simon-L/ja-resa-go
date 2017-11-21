@@ -6,4 +6,4 @@
 
 Content is served at `0.0.0.0:8080/`
 
-`caldav-go` is vendored because of a *bug (??)* with HTTP requests not including the Depth header.
+> `caldav-go` is vendored because of a *bug (??)* with HTTP requests not including the Depth header.

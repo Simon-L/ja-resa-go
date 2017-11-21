@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -27,32 +28,42 @@ type EventJSON struct {
 	Password  string    `json:"password"`
 }
 
+func uriFromPath(path string) (URI string, err error) {
+	switch path {
+	case "/a/music":
+		return "music_test", nil
+	case "/a/live-perf":
+		return "live-perf_test", nil
+	case "/a/ja-events":
+		return "ja-events_test", nil
+	case "/a/redbox":
+		return "red-box_test", nil
+	default:
+		return "", errors.New("")
+	}
+}
+
 func handleDelete(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(r.URL)
-	var path string
-	switch r.URL.Path {
-	case "/a/music":
-		path = "music_test"
-	case "/a/live-perf":
-		path = "live-perf_test"
-	case "/a/ja-events":
-		path = "ja-events_test"
-	case "/a/redbox":
-		path = "red-box_test"
-	default:
-		fmt.Fprintf(w, "Error")
+	path, err := uriFromPath(r.URL.Path)
+	if err != nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
 		return
 	}
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		return
 	}
 	fmt.Println(string(body))
 	var e EventJSON
 	err = json.Unmarshal(body, &e)
 	if err != nil {
-		panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		return
 	}
 	fmt.Println(e)
 	fmt.Println(path)
@@ -60,6 +71,8 @@ func handleDelete(w http.ResponseWriter, r *http.Request) {
 	path = fmt.Sprintf("/%s/%s.ics", path, e.ID)
 	err = client.DeleteEvent(path)
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
 		return
 	}
 
@@ -70,30 +83,25 @@ func handleDelete(w http.ResponseWriter, r *http.Request) {
 
 func handlePost(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(r.URL)
-	var path string
-	switch r.URL.Path {
-	case "/a/music":
-		path = "music_test"
-	case "/a/live-perf":
-		path = "live-perf_test"
-	case "/a/ja-events":
-		path = "ja-events_test"
-	case "/a/redbox":
-		path = "red-box_test"
-	default:
-		fmt.Fprintf(w, "Error")
+	path, err := uriFromPath(r.URL.Path)
+	if err != nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
 		return
 	}
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		return
 	}
 	fmt.Println(string(body))
 	var e EventJSON
 	err = json.Unmarshal(body, &e)
 	if err != nil {
-		panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		return
 	}
 	fmt.Println(e)
 
@@ -109,12 +117,16 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(putEvent)
 	// save the event to the server, then fetch it back out
 	if err = client.PutEvents(path, putEvent); err != nil {
-		panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		return
 	}
 
 	body, err = json.Marshal(e)
 	if err != nil {
-		panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		return
 	}
 	fmt.Println(body)
 
@@ -127,18 +139,9 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(r.URL.Path)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	var path string
-	switch r.URL.Path {
-	case "/a/music":
-		path = "music_test"
-	case "/a/live-perf":
-		path = "live-perf_test"
-	case "/a/ja-events":
-		path = "ja-events_test"
-	case "/a/redbox":
-		path = "red-box_test"
-	default:
-		fmt.Fprintf(w, "Error")
+	path, err := uriFromPath(r.URL.Path)
+	if err != nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
 		return
 	}
 
@@ -150,12 +153,16 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	end := time.Unix(int64(e), 0).Truncate(time.Hour).UTC()
 	query, err := calentities.NewEventRangeQuery(start, end)
 	if err != nil {
-		fmt.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		return
 	}
 
 	events, err := client.QueryEvents(path, query)
 	if err != nil {
-		fmt.Println(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		return
 	}
 	for _, ev := range events {
 		evj := EventJSON{
@@ -172,7 +179,9 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 	content, err := json.Marshal(eventsj)
 	if err != nil {
-		panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		return
 	}
 	if len(eventsj) == 0 {
 		fmt.Fprintf(w, "[]")
@@ -207,7 +216,7 @@ func main() {
 		case http.MethodDelete:
 			handleDelete(w, r)
 		default:
-			return
+			http.Error(w, "Not Found", http.StatusNotFound)
 		}
 	})
 
