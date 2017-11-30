@@ -83,6 +83,8 @@ func handleDelete(w http.ResponseWriter, r *http.Request) {
 
 func handlePost(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(r.URL)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	path, err := uriFromPath(r.URL.Path)
 	if err != nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
@@ -129,9 +131,59 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Println(body)
+	w.Write(body)
+}
 
+func handlePut(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(r.URL)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	path, err := uriFromPath(r.URL.Path)
+	if err != nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
+	fmt.Println(string(body))
+	var e EventJSON
+	err = json.Unmarshal(body, &e)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
+	fmt.Println(e)
+
+	// uuid := fmt.Sprintf("jaresa-%d", e.Start.Unix())
+	// e.ID = uuid
+	putEvent := components.NewEventWithEnd(e.ID, e.Start, e.End)
+	putEvent.Summary = e.Title
+	putEvent.Description = e.Telephone
+
+	// generate an ICS filepath
+	path = fmt.Sprintf("/%s/%s.ics", path, e.ID)
+
+	fmt.Println(putEvent)
+	// save the event to the server, then fetch it back out
+	if err = client.PutEvents(path, putEvent); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
+
+	body, err = json.Marshal(e)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		return
+	}
+	fmt.Println(body)
 	w.Write(body)
 }
 
@@ -215,6 +267,8 @@ func main() {
 			handleGet(w, r)
 		case http.MethodDelete:
 			handleDelete(w, r)
+		case http.MethodPut:
+			handlePut(w, r)
 		default:
 			http.Error(w, "Not Found", http.StatusNotFound)
 		}
